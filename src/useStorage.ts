@@ -33,25 +33,22 @@ export function useStorage() {
     const parsedAmount = parseFloat(amount.toString());
     if (isNaN(parsedAmount) || parsedAmount <= 0) return false;
 
-    // Calculate new balance for the contact
     const contact = contacts.find((c) => c.id === contactId);
     if (!contact) return false;
     const newBalance = type === 'Given' 
       ? contact.balance - parsedAmount 
       : contact.balance + parsedAmount;
 
-    // Create transaction with timestamp and balance
     const transaction: Transaction = {
       id: Date.now().toString(),
       contactId,
       amount: parsedAmount,
       type,
-      date: new Date(timestamp).toISOString().split('T')[0], // Keep for legacy
+      date: new Date(timestamp).toISOString().split('T')[0],
       timestamp,
       balance: newBalance,
     };
 
-    // Update transactions and contacts
     setTransactions([...transactions, transaction]);
     setContacts(
       contacts.map((c) =>
@@ -61,5 +58,71 @@ export function useStorage() {
     return true;
   };
 
-  return { contacts, transactions, addContact, addTransaction };
+  const deleteTransaction = (transactionId: string): boolean => {
+    const transactionToDelete = transactions.find(t => t.id === transactionId);
+    if (!transactionToDelete) return false;
+
+    const contact = contacts.find(c => c.id === transactionToDelete.contactId);
+    if (!contact) return false;
+
+    // Recalculate balance by removing the transaction's effect
+    const updatedTransactions = transactions.filter(t => t.id !== transactionId);
+    const remainingTransactions = updatedTransactions.filter(t => t.contactId === contact.id);
+    const newBalance = remainingTransactions.reduce((sum, t) => 
+      sum + (t.type === 'Given' ? -t.amount : t.amount), 0);
+
+    setTransactions(updatedTransactions);
+    setContacts(
+      contacts.map(c =>
+        c.id === contact.id ? { ...c, balance: newBalance } : c
+      )
+    );
+    return true;
+  };
+
+  const editTransaction = (
+    transactionId: string,
+    amount: number,
+    type: 'Given' | 'Received',
+    timestamp: string
+  ): boolean => {
+    const parsedAmount = parseFloat(amount.toString());
+    if (isNaN(parsedAmount) || parsedAmount <= 0) return false;
+
+    const transactionToEdit = transactions.find(t => t.id === transactionId);
+    if (!transactionToEdit) return false;
+
+    const contact = contacts.find(c => c.id === transactionToEdit.contactId);
+    if (!contact) return false;
+
+    // Calculate old effect on balance
+    const oldEffect = transactionToEdit.type === 'Given' ? -transactionToEdit.amount : transactionToEdit.amount;
+    // Calculate new effect on balance
+    const newEffect = type === 'Given' ? -parsedAmount : parsedAmount;
+    const balanceDelta = newEffect - oldEffect;
+
+    const updatedTransaction: Transaction = {
+      ...transactionToEdit,
+      amount: parsedAmount,
+      type,
+      timestamp,
+      date: new Date(timestamp).toISOString().split('T')[0],
+      balance: contact.balance + balanceDelta, // Update balance based on delta
+    };
+
+    const updatedTransactions = transactions.map(t =>
+      t.id === transactionId ? updatedTransaction : t
+    );
+    const newBalance = contact.balance + balanceDelta;
+
+    setTransactions(updatedTransactions);
+    setContacts(
+      contacts.map(c =>
+        c.id === contact.id ? { ...c, balance: newBalance } : c
+      )
+    );
+    return true;
+  };
+
+  return { contacts, transactions, addContact, addTransaction, deleteTransaction, editTransaction };
 }

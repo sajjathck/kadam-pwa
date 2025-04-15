@@ -10,6 +10,7 @@ export default function Home() {
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState('');
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState(''); 
 
   const handleAddContact = (name: string) => {
     const id = addContact(name);
@@ -21,6 +22,10 @@ export default function Home() {
     }
   };
 
+  const filteredContacts = contacts.filter((contact: Contact) =>
+    contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-neutral-50 p-4">
       {/* Header with Search Bar */}
@@ -30,23 +35,22 @@ export default function Home() {
           <input
             type="text"
             placeholder="Search Contact"
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+            className="w-full pl-5 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-gray-900"
           />
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-            🔍
-          </span>
         </div>
       </header>
 
       {/* Contact List */}
-      {contacts.length === 0 ? (
+      {filteredContacts.length === 0 ? (
         <div className="text-center mt-40">
           <p className="text-gray-700 font-medium">No contacts yet.</p>
           <p className="text-gray-700 font-medium">Add a contact to start tracking.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {contacts.map((contact: Contact) => (
+          {filteredContacts.map((contact: Contact) => (
             <div
               key={contact.id}
               className="bg-white p-3 rounded-lg shadow-sm flex justify-between items-center cursor-pointer"
@@ -75,7 +79,7 @@ export default function Home() {
       )}
 
       {/* Add Contact Button (FAB) */}
-      {contacts.length > 0 && (
+      {(
         <button
           className="fixed bottom-4 right-4 w-12 h-12 bg-receivable text-white rounded-full flex items-center justify-center text-2xl shadow-lg font-medium"
           onClick={() => setShowModal(true)}

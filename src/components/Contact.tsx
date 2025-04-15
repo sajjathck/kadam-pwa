@@ -3,17 +3,23 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStorage } from '../useStorage';
 import ActionButton from './common/ActionButton';
 import AddTransactionModal from './common/AddTransactionModal';
+import EditTransactionModal from './common/EditTransactionModal';
+import ConfirmDeleteModal from './common/ConfirmDeleteModal';
 import Toast from './common/Toast';
 import type { Contact } from '../types/index.ts';
 import type { Transaction } from '../types/index.ts';
 
 export default function Contact() {
   const { id } = useParams<{ id: string }>();
-  const { contacts, transactions, addTransaction } = useStorage();
+  const { contacts, transactions, addTransaction, deleteTransaction, editTransaction } = useStorage();
   const contact = contacts.find((c: Contact) => c.id === id);
   const navigate = useNavigate();
 
-  const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const [type, setType] = useState<'Given' | 'Received'>('Received');
   const [toast, setToast] = useState('');
 
@@ -22,8 +28,35 @@ export default function Contact() {
   const handleAddTransaction = (amount: number, type: 'Given' | 'Received', timestamp: string) => {
     const success = addTransaction(contact.id, amount, type, timestamp);
     if (success) {
-      setShowModal(false);
+      setShowAddModal(false);
       setToast('Transaction added!');
+      setTimeout(() => setToast(''), 2000);
+    }
+  };
+
+  const handleEditTransaction = (amount: number, type: 'Given' | 'Received', timestamp: string) => {
+    if (!selectedTransaction) return;
+    const success = editTransaction(selectedTransaction.id, amount, type, timestamp);
+    if (success) {
+      setShowEditModal(false);
+      setSelectedTransaction(null);
+      setToast('Transaction updated!');
+      setTimeout(() => setToast(''), 2000);
+    }
+  };
+
+  const handleDeleteTransaction = (transactionId: string) => {
+    setTransactionToDelete(transactionId);
+    setShowConfirmDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    if (!transactionToDelete) return;
+    const success = deleteTransaction(transactionToDelete);
+    if (success) {
+      setShowConfirmDeleteModal(false);
+      setTransactionToDelete(null);
+      setToast('Transaction deleted!');
       setTimeout(() => setToast(''), 2000);
     }
   };
@@ -32,12 +65,10 @@ export default function Contact() {
     (t: Transaction) => t.contactId === id
   );
 
-  // Sort transactions by timestamp in descending order (latest first)
   const sortedTransactions = [...contactTransactions].sort((a, b) => 
     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 
-  // Calculate balance at each transaction
   const transactionsWithBalance = sortedTransactions.map((t, index) => {
     const prevTransactions = sortedTransactions.slice(0, index);
     const prevBalance = prevTransactions.reduce((sum, pt) => 
@@ -75,7 +106,12 @@ export default function Contact() {
           transactionsWithBalance.map((t: Transaction & { balance: number }) => (
             <div
               key={t.id}
-              className="bg-white p-2 mb-1 rounded-lg shadow-sm flex justify-between items-center"
+              className="bg-white p-2 mb-1 rounded-lg shadow-sm flex justify-between items-center group"
+              onClick={() => {
+                setSelectedTransaction(t);
+                setType(t.type);
+                setShowEditModal(true);
+              }}
             >
               <div>
                 <div className="text-xs text-gray-600 font-medium">
@@ -85,10 +121,32 @@ export default function Contact() {
                   Balance: {t.balance < 0 ? '-' : '+'} ₹{Math.abs(t.balance).toFixed(2)}
                 </div>
               </div>
-              <div
-                className={t.type === 'Given' ? 'text-owed' : 'text-receivable'}
-              >
-                {t.type === 'Given' ? '-' : '+'} ₹{t.amount.toFixed(2)}
+              <div className="flex items-center space-x-2">
+                <div
+                  className={t.type === 'Given' ? 'text-owed' : 'text-receivable'}
+                >
+                  {t.type === 'Given' ? '-' : '+'} ₹{t.amount.toFixed(2)}
+                </div>
+                <button
+                  className="text-blue-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  onClick={(e) => {
+                    e.stopPropagation(); 
+                    setSelectedTransaction(t);
+                    setType(t.type);
+                    setShowEditModal(true);
+                  }}
+                >
+                  
+                </button>
+                <button
+                  className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  onClick={(e) => {
+                    e.stopPropagation(); 
+                    handleDeleteTransaction(t.id);
+                  }}
+                >
+                  
+                </button>
               </div>
             </div>
           ))
@@ -99,7 +157,7 @@ export default function Contact() {
           type="Received"
           onClick={() => {
             setType('Received');
-            setShowModal(true);
+            setShowAddModal(true);
           }}
         >
           Received
@@ -108,17 +166,38 @@ export default function Contact() {
           type="Given"
           onClick={() => {
             setType('Given');
-            setShowModal(true);
+            setShowAddModal(true);
           }}
         >
           Given
         </ActionButton>
       </div>
-      {showModal && (
+      {showAddModal && (
         <AddTransactionModal
-          onClose={() => setShowModal(false)}
+          onClose={() => setShowAddModal(false)}
           onSubmit={handleAddTransaction}
           type={type}
+        />
+      )}
+      {showEditModal && selectedTransaction && (
+        <EditTransactionModal
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedTransaction(null);
+          }}
+          onSubmit={handleEditTransaction}
+          type={type}
+          transaction={selectedTransaction}
+          contactName={contact.name}
+        />
+      )}
+      {showConfirmDeleteModal && (
+        <ConfirmDeleteModal
+          onClose={() => {
+            setShowConfirmDeleteModal(false);
+            setTransactionToDelete(null);
+          }}
+          onConfirm={confirmDelete}
         />
       )}
       {toast && <Toast message={toast} />}
